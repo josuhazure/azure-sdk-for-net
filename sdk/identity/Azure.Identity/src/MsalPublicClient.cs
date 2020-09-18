@@ -31,11 +31,19 @@ namespace Azure.Identity
 
             var authorityUri = new UriBuilder(authorityHost.Scheme, authorityHost.Host, authorityHost.Port, TenantId ?? Constants.OrganizationsTenantId).Uri;
 
-            PublicClientApplicationBuilder pubAppBuilder = PublicClientApplicationBuilder.Create(ClientId).WithAuthority(authorityUri).WithHttpClientFactory(new HttpPipelineClientFactory(Pipeline.HttpPipeline));
+            PublicClientApplicationBuilder pubAppBuilder = PublicClientApplicationBuilder.Create(ClientId).WithHttpClientFactory(new HttpPipelineClientFactory(Pipeline.HttpPipeline));
 
-            if (!string.IsNullOrEmpty(RedirectUrl))
+            if (authorityUri.AbsoluteUri?.EndsWith("/adfs", StringComparison.InvariantCultureIgnoreCase) ?? false)
             {
-                pubAppBuilder = pubAppBuilder.WithRedirectUri(RedirectUrl);
+                pubAppBuilder = pubAppBuilder.WithAdfsAuthority(authorityUri.AbsoluteUri).WithDefaultRedirectUri();
+            }
+            else
+            {
+                pubAppBuilder = pubAppBuilder.WithAuthority(authorityUri);
+                if (!string.IsNullOrEmpty(RedirectUrl))
+                {
+                    pubAppBuilder = pubAppBuilder.WithRedirectUri(RedirectUrl);
+                }
             }
 
             return new ValueTask<IPublicClientApplication>(pubAppBuilder.Build());
@@ -56,7 +64,7 @@ namespace Azure.Identity
         public virtual async ValueTask<AuthenticationResult> AcquireTokenInteractiveAsync(string[] scopes, Prompt prompt, bool async, CancellationToken cancellationToken)
         {
             IPublicClientApplication client = await GetClientAsync(async, cancellationToken).ConfigureAwait(false);
-            return await client.AcquireTokenInteractive(scopes).WithPrompt(prompt).ExecuteAsync(async, cancellationToken).ConfigureAwait(false);
+            return await client.AcquireTokenInteractive(scopes).WithUseEmbeddedWebView(true).WithPrompt(prompt).ExecuteAsync(async, cancellationToken).ConfigureAwait(false);
         }
 
         public virtual async ValueTask<AuthenticationResult> AcquireTokenByUsernamePasswordAsync(string[] scopes, string username, SecureString password, bool async, CancellationToken cancellationToken)
